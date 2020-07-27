@@ -18,6 +18,7 @@ package internal
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"runtime"
 	"sync"
@@ -35,6 +36,26 @@ const (
 )
 
 
+// Parameters for stacking, after postprocessing
+type StackParams struct {
+	Memory       int64
+	Mode         StackMode 
+	Weighted     int32
+	SigmaLow     float32
+	SigmaHigh    float32 
+	ClipPercLow  float32
+	ClipPercHigh float32
+	BatchPattern string
+	OutName      string 
+}
+
+// Print parameters for stacking subexposures
+func (p *StackParams) String() string {
+	return fmt.Sprintf("stMode %d stSigLow %.3f stSigHigh %.3f stClipPercLow %.3f stClipPercHigh %.3f",
+						p.Mode, p.SigmaLow, p.SigmaHigh, p.ClipPercLow, p.ClipPercHigh)
+}
+
+
 // Auto-select stacking mode based on number of frames
 func autoSelectStackingMode(l int) StackMode {
 	if l>=25 {
@@ -50,14 +71,14 @@ func autoSelectStackingMode(l int) StackMode {
 
 
 // Stack a set of light frames. Limits parallelism to the number of available cores
-func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, sigmaLow, sigmaHigh float32) (result *FITSImage, numClippedLow, numClippedHigh int32, err error) {
+func Stack(lights []*FITSImage, weights []float32, refMedian float32, p *StackParams) (result *FITSImage, numClippedLow, numClippedHigh int32, err error) {
 	// validate stacking modes and perform automatic mode selection if necesssary
-	if mode<StMedian || mode>StAuto {
+	if p.Mode<StMedian || p.Mode>StAuto {
 		return nil, -1, -1, errors.New("invalid stacking mode")
 	}
-	if mode==StAuto { 
-		mode=autoSelectStackingMode(len(lights))
-		LogPrintf("Auto-selected stacking mode %d based on %d frames\n", mode, len(lights))
+	if p.Mode==StAuto { 
+		p.Mode=autoSelectStackingMode(len(lights))
+		LogPrintf("Auto-selected stacking mode %d based on %d frames\n", p.Mode, len(lights))
 	}
 
 	// create return value array
@@ -84,7 +105,7 @@ func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, si
 			for i, l:=range lights { ldBatch[i]=l.Data[lower:upper] }
 
 			// run stacking for the given batch
-			switch mode {
+			switch p.Mode {
 			case StMedian:
 				StackMedian(ldBatch, refMedian, data[lower:upper])
 
@@ -98,9 +119,9 @@ func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, si
 			case StSigma:
 				var clipLow, clipHigh int32
 				if weights==nil {
-					clipLow, clipHigh=StackSigma(ldBatch, refMedian, sigmaLow, sigmaHigh, data[lower:upper])
+					clipLow, clipHigh=StackSigma(ldBatch, refMedian, p.SigmaLow, p.SigmaHigh, data[lower:upper])
 				} else {
-					clipLow, clipHigh=StackSigmaWeighted(ldBatch, weights, refMedian, sigmaLow, sigmaHigh, data[lower:upper])
+					clipLow, clipHigh=StackSigmaWeighted(ldBatch, weights, refMedian, p.SigmaLow, p.SigmaHigh, data[lower:upper])
 				}
 				numClippedLock.Lock()
 				numClippedLow+=clipLow
@@ -110,9 +131,9 @@ func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, si
 			case StWinsorSigma:
 				var clipLow, clipHigh int32
 				if weights==nil {
-					clipLow, clipHigh=StackWinsorSigma(ldBatch, refMedian, sigmaLow, sigmaHigh, data[lower:upper])
+					clipLow, clipHigh=StackWinsorSigma(ldBatch, refMedian, p.SigmaLow, p.SigmaHigh, data[lower:upper])
 				} else {
-					clipLow, clipHigh=StackWinsorSigmaWeighted(ldBatch, weights, refMedian, sigmaLow, sigmaHigh, data[lower:upper])
+					clipLow, clipHigh=StackWinsorSigmaWeighted(ldBatch, weights, refMedian, p.SigmaLow, p.SigmaHigh, data[lower:upper])
 				}
 				numClippedLock.Lock()
 				numClippedLow+=clipLow
@@ -120,7 +141,7 @@ func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, si
 				numClippedLock.Unlock()
 
 			case StLinearFit:
-				clipLow, clipHigh:=StackLinearFit(ldBatch, refMedian, sigmaLow, sigmaHigh, data[lower:upper])
+				clipLow, clipHigh:=StackLinearFit(ldBatch, refMedian, p.SigmaLow, p.SigmaHigh, data[lower:upper])
 				numClippedLock.Lock()
 				numClippedLow+=clipLow
 				numClippedHigh+=clipHigh
@@ -141,7 +162,7 @@ func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, si
 	LogPrint("\r")
 
 	// report back on clipping for modes that apply clipping
-	if mode>=StSigma {
+	if p.Mode>=StSigma {
 		LogPrintf("Clipped low %d (%.2f%%) high %d (%.2f%%)\n", 
 			numClippedLow,  float32(numClippedLow )*100.0/(float32(len(data)*len(lights))),
 			numClippedHigh, float32(numClippedHigh)*100.0/(float32(len(data)*len(lights))) )
@@ -167,7 +188,7 @@ func Stack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, si
 	stack.Stats, err=CalcExtendedStats(data, lights[0].Naxisn[0])
 	if err!=nil { return nil, -1, -1, err }
 
-	if mode>=StSigma {
+	if p.Mode>=StSigma {
 		return &stack, numClippedLow, numClippedHigh, nil
 	}
 	return &stack, -1, -1, nil

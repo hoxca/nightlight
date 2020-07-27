@@ -22,28 +22,29 @@ import (
 
 
 // Find lower and upper sigma bounds given desired clipping percentages, and stack using these values
-func FindSigmasAndStack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, stClipPercLow, stClipPercHigh float32) (result *FITSImage, numClippedLow, numClippedHigh int32, sigmaLow, sigmaHigh float32, err error) {
+func FindSigmasAndStack(lights []*FITSImage, weights []float32, refMedian float32, p *StackParams) (result *FITSImage, numClippedLow, numClippedHigh int32, sigmaLow, sigmaHigh float32, err error) {
 	// If desired, auto-select stacking mode based on number of frames    
-	if mode==StAuto { 
-		mode=autoSelectStackingMode(len(lights))
-		LogPrintf("Auto-selected stacking mode %d based on %d frames\n", mode, len(lights))
+	if p.Mode==StAuto { 
+		p.Mode=autoSelectStackingMode(len(lights))
+		LogPrintf("Auto-selected stacking mode %d based on %d frames\n", p.Mode, len(lights))
 	}
 
     // Binary search does not work for linear fit stacking, as changing one bound has an impact on the other.
     // However, Newton search in two dimensions is slower than dual binary search.
-	if mode==StLinearFit {
-		return newtonMethodAndStack(lights, mode, weights, refMedian, stClipPercLow, stClipPercHigh)
-	} else if mode==StWinsorSigma || mode==StSigma {
-		return binarySearchAndStack(lights, mode, weights, refMedian, stClipPercLow, stClipPercHigh) 
+	if p.Mode==StLinearFit {
+		return newtonMethodAndStack(lights, weights, refMedian, p)
+	} else if p.Mode==StWinsorSigma || p.Mode==StSigma {
+		return binarySearchAndStack(lights, weights, refMedian, p) 
 	} else {
-		LogPrintf("Stacking mode %d does not support sigmas, proceeding with normal stack.\n", mode)
-		result, numClippedLow, numClippedHigh, err = Stack(lights, mode, weights, refMedian, 0.0, 0.0)
+		LogPrintf("Stacking mode %d does not support sigmas, proceeding with normal stack.\n", p.Mode)
+		p.SigmaLow, p.SigmaHigh=0, 0
+		result, numClippedLow, numClippedHigh, err = Stack(lights, weights, refMedian, p)
 		return result, numClippedLow, numClippedHigh, 0.0, 0.0, err
 	}
 }
 
 // With binary search, find lower and upper sigma bounds given desired clipping percentages, and stack using these values
-func binarySearchAndStack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, stClipPercLow, stClipPercHigh float32) (result *FITSImage, numClippedLow, numClippedHigh int32, sigmaLow, sigmaHigh float32, err error) {
+func binarySearchAndStack(lights []*FITSImage, weights []float32, refMedian float32, p *StackParams) (result *FITSImage, numClippedLow, numClippedHigh int32, sigmaLow, sigmaHigh float32, err error) {
 	// initialize binary search intervals
 	initialLeft, initialRight:=float32(1.0), float32(11.0)
 	lowLeft, lowRight:=initialLeft, initialRight
@@ -56,15 +57,16 @@ func binarySearchAndStack(lights []*FITSImage, mode StackMode, weights []float32
 		LogPrintf("Step %d: stSigLow %.2f stSigHigh %.2f\n", i, lowMid, highMid)
 		var numClippedLow, numClippedHigh int32
 		var err error
-		stack, numClippedLow, numClippedHigh, err:=Stack(lights, mode, weights, refMedian, lowMid, highMid)
+		p.SigmaLow, p.SigmaHigh=lowMid, highMid
+		stack, numClippedLow, numClippedHigh, err:=Stack(lights, weights, refMedian, p)
 		if err!=nil { return stack, numClippedLow, numClippedHigh, -1, -1, err }
 		percL:=float32(numClippedLow )*100.0/float32(len(stack.Data)*len(lights))
 		percH:=float32(numClippedHigh)*100.0/float32(len(stack.Data)*len(lights))
-		deltaL:=int(100*percL+0.5)-int(100*stClipPercLow)
-		deltaH:=int(100*percH+0.5)-int(100*stClipPercHigh)
+		deltaL:=int(100*percL+0.5)-int(100*p.ClipPercLow)
+		deltaH:=int(100*percH+0.5)-int(100*p.ClipPercHigh)
 		// Test completion and abort criteria
 		if deltaL==0 && deltaH==0 {
-			LogPrintf("Reached %.2f%% and %.2f%% clipping. Settings are -stSigLow %.3f -stSigHigh %.3f\n", stClipPercLow, stClipPercHigh, lowMid, highMid)
+			LogPrintf("Reached %.2f%% and %.2f%% clipping. Settings are -stSigLow %.3f -stSigHigh %.3f\n", p.ClipPercLow, p.ClipPercHigh, lowMid, highMid)
 			return stack, numClippedLow, numClippedHigh, lowMid, highMid, nil
 		}
 		if i>=20 {
@@ -96,7 +98,7 @@ func binarySearchAndStack(lights []*FITSImage, mode StackMode, weights []float32
 }
 
 // With Newton's method, find lower and upper sigma bounds given desired clipping percentages, and stack using these values
-func newtonMethodAndStack(lights []*FITSImage, mode StackMode, weights []float32, refMedian, stClipPercLow, stClipPercHigh float32) (result *FITSImage, numClippedLow, numClippedHigh int32, sigmaLow, sigmaHigh float32, err error) {
+func newtonMethodAndStack(lights []*FITSImage, weights []float32, refMedian float32, p *StackParams) (result *FITSImage, numClippedLow, numClippedHigh int32, sigmaLow, sigmaHigh float32, err error) {
 	sigLow, sigHigh, epsilon :=float32(6.0), float32(6.0), float32(0.005)
 
 	for i:=0; ; i++ {
@@ -104,39 +106,41 @@ func newtonMethodAndStack(lights []*FITSImage, mode StackMode, weights []float32
 		LogPrintf("Step %d: stSigLow %.2f stSigHigh %.2f\n", i, sigLow, sigHigh)
 		var numClippedLow, numClippedHigh int32
 		var err error
-		stack, numClippedLow, numClippedHigh, err:=Stack(lights, mode, weights, refMedian, sigLow, sigHigh)
-		if err!=nil { return stack, numClippedLow, numClippedHigh, stClipPercLow, stClipPercHigh, err }
+		p.SigmaLow, p.SigmaHigh=sigLow, sigHigh
+		stack, numClippedLow, numClippedHigh, err:=Stack(lights, weights, refMedian, p)
+		if err!=nil { return stack, numClippedLow, numClippedHigh, p.SigmaLow, p.SigmaHigh, err }
 		percL:=float32(numClippedLow )*100.0/float32(len(stack.Data)*len(lights))
 		percH:=float32(numClippedHigh)*100.0/float32(len(stack.Data)*len(lights))
-		deltaL:=percL-stClipPercLow
-		deltaH:=percH-stClipPercLow
+		deltaL:=percL-p.ClipPercLow
+		deltaH:=percH-p.ClipPercLow
 
 		deltaLi:=int(100*deltaL+0.5)
 		deltaHi:=int(100*deltaH+0.5)
 
 		// Test completion and abort criteria
 		if deltaLi==0 && deltaHi==0 {
-			LogPrintf("Reached %.2f%% and %.2f%% clipping. Settings are -stSigLow %.3f -stSigHigh %.3f\n", stClipPercLow, stClipPercHigh, sigLow, sigHigh)
-			return stack, numClippedLow, numClippedHigh, sigLow, sigHigh, nil
+			LogPrintf("Reached %.2f%% and %.2f%% clipping. Settings are -stSigLow %.3f -stSigHigh %.3f\n", p.ClipPercLow, p.ClipPercHigh, p.SigmaLow, p.SigmaHigh)
+			return stack, numClippedLow, numClippedHigh, p.SigmaLow, p.SigmaHigh, nil
 		}
 		if i>=20 {
-			LogPrintf("Warning: Newton method did not converge, proceeding with last approximation %.2f and %.2f\n", sigLow, sigHigh)
-			return stack, numClippedLow, numClippedHigh, sigLow, sigHigh, nil
+			LogPrintf("Warning: Newton method did not converge, proceeding with last approximation %.2f and %.2f\n", p.SigmaLow, p.SigmaHigh)
+			return stack, numClippedLow, numClippedHigh, p.SigmaLow, p.SigmaHigh, nil
 		}
 		stack=nil // mark memory for free-up
 		debug.FreeOSMemory()
 
 		// Vary sigmaLow by epsilon, and compute new value via Newton's rule x_n+1 = x_n - f(x_n)/f'(x_n)
 		i++
-		LogPrintf("Step %d: stSigLow+eps %.2f, stSigHigh %.2f\n", i, sigLow+epsilon, sigHigh)
-		stack2, numClippedLow2, numClippedHigh2, err:=Stack(lights, mode, weights, refMedian, sigLow+epsilon, sigHigh)
-		if err!=nil { return stack2, numClippedLow2, numClippedHigh2, sigLow+epsilon, sigHigh, err }
+		p.SigmaLow, p.SigmaHigh= sigLow+epsilon, sigHigh
+		LogPrintf("Step %d: stSigLow+eps %.2f, stSigHigh %.2f\n", i, p.SigmaLow, p.SigmaHigh)
+		stack2, numClippedLow2, numClippedHigh2, err:=Stack(lights, weights, refMedian, p)
+		if err!=nil { return stack2, numClippedLow2, numClippedHigh2, p.SigmaLow, p.SigmaHigh, err }
 		percL2:=float32(numClippedLow2 )*100.0/float32(len(stack2.Data)*len(lights))
-		deltaL2:=percL2-stClipPercLow
+		deltaL2:=percL2-p.ClipPercLow
 		deltaLDiff:=(deltaL2-deltaL)/epsilon
 		if deltaLDiff==0 {
-			LogPrintf("Warning: Newton method did not converge, proceeding with last approximation %.2f and %.2f\n", sigLow, sigHigh)
-			return stack, numClippedLow, numClippedHigh, sigLow, sigHigh, nil
+			LogPrintf("Warning: Newton method did not converge, proceeding with last approximation %.2f and %.2f\n", p.SigmaLow, p.SigmaHigh)
+			return stack, numClippedLow, numClippedHigh, p.SigmaLow, p.SigmaHigh, nil
 		}
 		newSigLow:=sigLow-deltaL/deltaLDiff
 		if newSigLow<0.1 { newSigLow=0.1 }
@@ -146,15 +150,16 @@ func newtonMethodAndStack(lights []*FITSImage, mode StackMode, weights []float32
 
 		// Vary sigmaHigh by epsilon, and compute new value via Newton's rule x_n+1 = x_n - f(x_n)/f'(x_n)
 		i++
-		LogPrintf("Step %d: stSigLow %.2f, stSigHigh+eps %.2f\n", i, sigLow, sigHigh+epsilon)
-		stack3, numClippedLow3, numClippedHigh3, err:=Stack(lights, mode, weights, refMedian, sigLow, sigHigh+epsilon)
-		if err!=nil { return stack3, numClippedLow3, numClippedHigh3, sigLow, sigHigh+epsilon, err }
+		p.SigmaLow, p.SigmaHigh= sigLow, sigHigh+epsilon
+		LogPrintf("Step %d: stSigLow %.2f, stSigHigh+eps %.2f\n", i, p.SigmaLow, p.SigmaHigh)
+		stack3, numClippedLow3, numClippedHigh3, err:=Stack(lights, weights, refMedian, p)
+		if err!=nil { return stack3, numClippedLow3, numClippedHigh3, p.SigmaLow, p.SigmaHigh, err }
 		percH3:=float32(numClippedHigh3)*100.0/float32(len(stack3.Data)*len(lights))
-		deltaH3:=percH3-stClipPercLow
+		deltaH3:=percH3-p.ClipPercLow
 		deltaHDiff:=(deltaH3-deltaH)/epsilon
 		if deltaHDiff==0 {
-			LogPrintf("Warning: Newton method did not converge, proceeding with last approximation %.2f and %.2f\n", sigLow, sigHigh)
-			return stack, numClippedLow, numClippedHigh, sigLow, sigHigh, nil
+			LogPrintf("Warning: Newton method did not converge, proceeding with last approximation %.2f and %.2f\n", p.SigmaLow, p.SigmaHigh)
+			return stack, numClippedLow, numClippedHigh, p.SigmaLow, p.SigmaHigh, nil
 		}
 		newSigHigh:=sigHigh-deltaH/deltaHDiff
 		if newSigHigh<0.1 { newSigHigh=0.1 }
