@@ -192,10 +192,10 @@ Flags:
 	cP    :=ParseCmdLineColorParams()
 	tcP   :=ParseCmdLineToneCurveParams()
 
-    // Check if command present
+    // Check if command present - serve GUI if not
     args:=flag.Args()
     if len(args)<1 {
-    	flag.Usage()
+    	nl.CmdServe()
     	return
     }
 
@@ -231,6 +231,8 @@ Flags:
     	nl.CmdLegal()
     case "version":
     	nl.LogPrintf("Version %s\n", version)
+    case "serve":
+    	nl.CmdServe()
     case "help", "?":
     	flag.Usage()
     default:
