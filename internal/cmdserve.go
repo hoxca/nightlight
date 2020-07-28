@@ -17,17 +17,26 @@ package internal
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/contrib/static"
+	"fmt"
 )
 
 
 // Serve static web content and API endpoints via HTTP
-func CmdServe() {
-r := gin.Default()
-	r.GET("/", func(c *gin.Context) {
+func CmdServe(port int) {
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
+	//gin.SetMode(gin.ReleaseMode())
+
+ 	// Serve frontend static files
+  	r.Use(static.Serve("/", static.LocalFile("./web/build", true)))
+
+	r.GET("/api/v1/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
 		})
 	})
-	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")	
-}
 
+	r.Run(fmt.Sprintf(":%d", port)) // listen and serve on 0.0.0.0:port (for windows "localhost:port")	
+}

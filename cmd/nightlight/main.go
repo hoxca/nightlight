@@ -118,6 +118,8 @@ var ppSigma   = flag.Float64("ppSigma", 1, "apply post-peak gamma this amount of
 
 var scaleBlack= flag.Float64("scaleBlack", 0, "move black point so histogram peak location is given value in %%, 0=don't")
 
+var port      = flag.Int64("port", 8080, "port for serving HTTP in interactive mode")
+
 var darkF *nl.FITSImage=nil
 var flatF *nl.FITSImage=nil
 
@@ -195,7 +197,7 @@ Flags:
     // Check if command present - serve GUI if not
     args:=flag.Args()
     if len(args)<1 {
-    	nl.CmdServe()
+    	nl.CmdServe(int(*port))
     	return
     }
 
@@ -232,7 +234,7 @@ Flags:
     case "version":
     	nl.LogPrintf("Version %s\n", version)
     case "serve":
-    	nl.CmdServe()
+    	nl.CmdServe(int(*port))
     case "help", "?":
     	flag.Usage()
     default:
