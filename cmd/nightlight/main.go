@@ -197,15 +197,15 @@ Flags:
     // Check if command present - serve GUI if not
     args:=flag.Args()
     if len(args)<1 {
-    	nl.CmdServe(int(*port))
+    	nl.CmdServe(int(*port), preP, postP, stackP, cP, tcP, []string{}, *out, *jpg)
     	return
     }
 
 	var fileNames []string
-    if args[0]=="stats" || args[0]=="stack" || args[0]=="rgb" || args[0]=="argb" || args[0]=="lrgb" {
+    if args[0]=="stats" || args[0]=="stack" || args[0]=="rgb" || args[0]=="argb" || args[0]=="lrgb" || args[0]=="serve" {
     	// Determine filenames to process
 		fileNames=nl.GlobFilenameWildcards(args[1:])
-		if fileNames==nil || len(fileNames)==0 {
+		if (fileNames==nil || len(fileNames)==0) && args[0]!="serve" {
 			nl.LogFatal("Error: no input files")
 		}
 		nl.LogPrintf("Found %d frames:\n", len(fileNames))
@@ -234,7 +234,7 @@ Flags:
     case "version":
     	nl.LogPrintf("Version %s\n", version)
     case "serve":
-    	nl.CmdServe(int(*port))
+    	nl.CmdServe(int(*port), preP, postP, stackP, cP, tcP, fileNames, *out, *jpg)
     case "help", "?":
     	flag.Usage()
     default:
