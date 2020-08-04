@@ -38,15 +38,15 @@ const (
 
 // Parameters for stacking, after postprocessing
 type StackParams struct {
-	Memory       int64
-	Mode         StackMode 
-	Weighted     int32
-	SigmaLow     float32
-	SigmaHigh    float32 
-	ClipPercLow  float32
-	ClipPercHigh float32
-	BatchPattern string
-	OutName      string 
+	Memory       int64			`json: memory`
+	Mode         StackMode 		`json: mode`
+	Weighted     int32			`json: weighted`
+	SigmaLow     float32		`json: sigmaLow`
+	SigmaHigh    float32 		`json: sigmaHigh`
+	ClipPercLow  float32		`json: clipPercLow`
+	ClipPercHigh float32		`json: clipPercHigh`
+	BatchPattern string			`json: batchPattern`
+	OutName      string 		`json: outName`
 }
 
 // Print parameters for stacking subexposures

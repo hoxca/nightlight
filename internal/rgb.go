@@ -23,17 +23,17 @@ import (
 
 // Parameters for RGB combination and enhancement, after stacking
 type ColorParams struct {
-	NeutSigmaLow  float32
-	NeutSigmaHigh float32
-	ChromaGamma   float32
-	ChromaSigma   float32
-	ChromaBy      float32
-	ChromaFrom    float32
-	ChromaTo      float32
-    RotBy         float32
-    RotFrom       float32
-    RotTo         float32
-    Scnr          float32
+	NeutSigmaLow  float32       `json: "neutSigmaLow"`
+	NeutSigmaHigh float32       `json: "neutSigmaHigh"`
+	ChromaGamma   float32       `json: "chromaGamma"`
+	ChromaSigma   float32       `json: "chromaSigma"`
+	ChromaBy      float32       `json: "chromaBy"`
+	ChromaFrom    float32       `json: "chromaFrom"`
+	ChromaTo      float32       `json: "chromaTo"`
+    RotBy         float32       `json: "rotBy"`
+    RotFrom       float32       `json: "rotFrom"`
+    RotTo         float32       `json: "rotTo"`
+    Scnr          float32       `json: "scnr"`
 }
 
 // Print parameters for stacking subexposures
@@ -46,14 +46,14 @@ func (p *ColorParams) String() string {
 }
 
 type ToneCurveParams struct {
-    AutoLoc       float32
-    AutoScale     float32
-    Midtone       float32
-    MidBlack      float32
-    Gamma         float32
-    PpGamma       float32
-    PpSigma       float32
-    ScaleBlack    float32
+    AutoLoc       float32        `json: "autoLoc"`
+    AutoScale     float32        `json: "autoScale"`
+    Midtone       float32        `json: "midtone"`
+    MidBlack      float32        `json: "midBlack"`
+    Gamma         float32        `json: "gamma"`
+    PpGamma       float32        `json: "ppGamma"`
+    PpSigma       float32        `json: "ppSigma"`
+    ScaleBlack    float32        `json: "scaleBlack"`
 }
 
 // Print parameters for stacking subexposures

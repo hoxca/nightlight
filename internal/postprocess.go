@@ -42,15 +42,15 @@ const (
 
 // Parameters for postprocessing subexposures after reference frame selection, and before stacking
 type PostProcessParams struct {
-	Align		int32
-	AlignK		int32
-	AlignThresh	float32
-	NormHist	HistoNormMode
-	OobMode		OutOfBoundsMode
-	UsmSigma	float32
-	UsmGain		float32
-	UsmThresh	float32
-	PostPattern string
+	Align		int32				`json: align`
+	AlignK		int32				`json: alignK`
+	AlignThresh	float32				`json: alignThresh`
+	NormHist	HistoNormMode		`json: normHist`
+	OobMode		OutOfBoundsMode		`json: oobMode`
+	UsmSigma	float32				`json: usmSigma`
+	UsmGain		float32				`json: usmGain`
+	UsmThresh	float32				`json: usmThresh`
+	PostPattern string				`json: postPattern`
 }
 	
 // Print parameters for preprocessing subexposures

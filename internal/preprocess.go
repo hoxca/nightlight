@@ -90,24 +90,24 @@ func LoadDarkAndFlat(dark, flat string) (darkF, flatF *FITSImage, err error) {
 
 // Parameters for preprocessing subexposures before reference frame selection
 type PreProcessParams struct {
-	Dark 	    string
-	Flat 	    string
-	Debayer     string
-	CFA         string
-	Binning     int
-	NormRange   int 
-	NormHist    int
-	BpSigLow    float32
-	BpSigHigh   float32
-	StarSig     float32
-	StarBpSig   float32
-	StarRadius  int
-	StarPattern string
-	BackGrid    int
-	BackSigma   float32
-	BackClip    int
-	BackPattern string
-	PrePattern  string
+	Dark 	    string  	`json: dark`
+	Flat 	    string		`json: flat`
+	Debayer     string		`json: debayer`
+	CFA         string		`json: cfa`
+	Binning     int			`json: binning`
+	NormRange   int 		`json: normRange`
+	NormHist    int			`json: normHist`
+	BpSigLow    float32		`json: bpSigLow`
+	BpSigHigh   float32		`json: bpSigHigh`
+	StarSig     float32		`json: starSig`
+	StarBpSig   float32		`json: starBpSig`
+	StarRadius  int			`json: starRadius`
+	StarPattern string		`json: starPattern`
+	BackGrid    int			`json: backGrid`
+	BackSigma   float32		`json: backSigma`
+	BackClip    int			`json: backClip`
+	BackPattern string		`json: backPattern`
+	PrePattern  string		`json: prePattern`
 }
 
 // Print parameters for preprocessing subexposures
